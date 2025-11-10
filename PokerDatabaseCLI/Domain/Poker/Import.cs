@@ -3,7 +3,7 @@ using PokerDatabaseCLI.Domain.Poker.Models;
 using System.Globalization;
 using System.Text;
 
-namespace PokerDatabaseCLI.Domain.Poker.Import;
+namespace PokerDatabaseCLI.Domain.Poker;
 
 public static class Import
 {
@@ -117,7 +117,7 @@ public static class Import
 
     private static Hand? ParseSingleHand(ReadOnlySpan<char> lineSpan, StreamReader reader)
     {
-        long number = GetNumberOptimized(lineSpan);
+        var number = GetNumberOptimized(lineSpan);
         var players = new List<Player>(10);
 
         string? line;
@@ -142,38 +142,38 @@ public static class Import
 
     private static long GetNumberOptimized(ReadOnlySpan<char> line)
     {
-        int hashIndex = line.IndexOf('#') + 1;
-        int colonIndex = line.Slice(hashIndex).IndexOf(':') + hashIndex;
+        var hashIndex = line.IndexOf('#') + 1;
+        var colonIndex = line.Slice(hashIndex).IndexOf(':') + hashIndex;
         return long.Parse(line.Slice(hashIndex, colonIndex - hashIndex));
     }
 
     private static Player ParseSeatLineOptimized(ReadOnlySpan<char> line)
     {
-        int colonIndex = line.IndexOf(':') + 2;
-        int chipsStart = line.LastIndexOf('(');
+        var colonIndex = line.IndexOf(':') + 2;
+        var chipsStart = line.LastIndexOf('(');
         var nameSpan = line.Slice(colonIndex, chipsStart - colonIndex - 1);
-        string playerName = nameSpan.ToString();
+        var playerName = nameSpan.ToString();
 
-        int chipsEnd = line.LastIndexOf(" in chips)");
+        var chipsEnd = line.LastIndexOf(" in chips)");
         var chipsSpan = line.Slice(chipsStart + 2, chipsEnd - chipsStart - 2);
-        decimal chips = decimal.Parse(chipsSpan, NumberStyles.Any, CultureInfo.InvariantCulture);
+        var chips = decimal.Parse(chipsSpan, NumberStyles.Any, CultureInfo.InvariantCulture);
 
         return new Player(playerName, chips);
     }
 
     private static void ParseDealtToLine(ReadOnlySpan<char> line, List<Player> players)
     {
-        int toIndex = line.IndexOf(" to ");
-        int bracketStart = line.IndexOf('[');
-        int bracketEnd = line.IndexOf(']');
+        var toIndex = line.IndexOf(" to ");
+        var bracketStart = line.IndexOf('[');
+        var bracketEnd = line.IndexOf(']');
 
         var nameSpan = line.Slice(toIndex + 4, bracketStart - toIndex - 5);
         var cardsSpan = line.Slice(bracketStart + 1, bracketEnd - bracketStart - 1);
 
-        string name = nameSpan.ToString();
-        string cards = cardsSpan.ToString();
+        var name = nameSpan.ToString();
+        var cards = cardsSpan.ToString();
 
-        for (int i = 0; i < players.Count; i++)
+        for (var i = 0; i < players.Count; i++)
         {
             if (players[i].Name.Equals(name))
             {

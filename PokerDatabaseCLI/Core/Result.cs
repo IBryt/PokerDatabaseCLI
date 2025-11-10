@@ -11,3 +11,4 @@ public abstract record Result<T>
     public static Result<T> Ok(T value) => new Success(value);
     public static Result<T> Fail(string error) => new Failure(error);
 }
+

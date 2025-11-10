@@ -1,49 +1,20 @@
-﻿using Open.ChannelExtensions;
+﻿using PokerDatabaseCLI.Application.Import;
+using PokerDatabaseCLI.Application.Import.ImportHands;
 using PokerDatabaseCLI.Core;
-using PokerDatabaseCLI.Domain.Poker.Import;
+using PokerDatabaseCLI.Core.Dependencies;
+using PokerDatabaseCLI.Domain.Poker;
 using PokerDatabaseCLI.Domain.Poker.Models;
-using PokerDatabaseCLI.Infrastructure.Persistence;
+using PokerDatabaseCLI.REPL;
 using System.Diagnostics;
+using System.Text;
 
 namespace PokerDatabaseCLI.Commands;
-
-/// <summary>
-/// Represents the statistics of a pipeline execution.
-/// </summary>
-public record PipelineStats
-(
-     int TotalFiles,
-     int ProcessedFiles,
-     int SuccessCount,
-     int ErrorCount,
-     int TotalHands,
-     int TotalDublicates
-);
-
-/// <summary>
-/// Represents the result of processing a single file.
-/// </summary>
-public record ProcessResult(
-    string FilePath,
-    int HandsCount,
-    bool IsSuccess
-);
-
-/// <summary>
-/// Represents statistics and hands after saving hands to the database.
-/// </summary>
-public record SaveStats(
-    IReadOnlyDictionary<long, Hand> Hands,
-    int DublicatesCount
-);
 
 /// <summary>
 /// Command for importing poker hands from a folder.
 /// </summary>
 public static class ImportCommand
 {
-    private const int BATCH_SIZE = 10_000;
-
     /// <summary>
     /// Definition of the "import" command for the CLI.
     /// </summary>
@@ -60,217 +31,149 @@ public static class ImportCommand
     private static Result<string> ExecuteImportCommand(CommandContext ctx)
     {
         var path = ctx.Parameters["path"];
+
+        var cts = new CancellationTokenSource();
         var stopwatch = Stopwatch.StartNew();
 
-        try
-        {
-            var result = Import.ValidatePath(path)
-                .Bind(Import.ScanDirectory)
-                .Map(directories =>
-                {
-                    var batchSize = directories.FilePaths.Count / 20;
-                    var stats = ProcessPipeline(directories, batchSize);
-                    return FormatResult(stats, stopwatch.Elapsed);
-                });
-            return result;
-        }
-        catch (Exception ex)
-        {
-            return Result<string>.Fail($"Import error: {ex.Message}");
-        }
-    }
+        var progressReporter = CreateProgressReporter(cts, stopwatch);
 
-    private static PipelineStats ProcessPipeline(ScanResult scan, int batchSize)
-    {
-        var stats = new PipelineStats(
-            TotalFiles: scan.FilePaths.Count,
-            ProcessedFiles: 0,
-            SuccessCount: 0,
-            ErrorCount: 0,
-            TotalHands: 0,
-            TotalDublicates: 0
+        var importDependencies = ImportDependencies.Default;
+        var importServiceParams = new ImportServiceParams(
+            Path: path,
+            Progress: progressReporter,
+            CancellationToken: cts.Token,
+            ImportDependencies: importDependencies
         );
 
-        var statsLock = new object();
-        var processedCount = 0;
-
-        var handsAccumulator = new Dictionary<long, Hand>();
-        var accumulatorLock = new object();
-
-        var processTask = Import.ProcessFiles(scan)
-            .ToChannel(capacity: 10, singleReader: true)
-            .Pipe(
-                maxConcurrency: Environment.ProcessorCount - 3,
-                capacity: 10,
-                transform: ProcessHands
-            )
-            .ReadAll(result =>
-            {
-                Result<SaveStats>? saveResult = null;
-
-                lock (accumulatorLock)
-                {
-                    if (result is Result<IReadOnlyDictionary<long, Hand>>.Success success)
-                    {
-                        foreach (var hand in success.Value)
-                        {
-                            handsAccumulator[hand.Key] = hand.Value;
-                        }
-
-                        if (handsAccumulator.Count >= BATCH_SIZE)
-                        {
-                            saveResult = SaveBatchToDb(handsAccumulator);
-                            handsAccumulator.Clear();
-                        }
-                    }
-                }
-
-                lock (statsLock)
-                {
-                    processedCount++;
-
-                    if (saveResult != null)
-                    {
-                        stats = UpdateStats(stats, saveResult);
-                    }
-                    else if (result is Result<IReadOnlyDictionary<long, Hand>>.Success)
-                    {
-                        stats = stats with { SuccessCount = stats.SuccessCount + 1 };
-                    }
-                    else if (result is Result<IReadOnlyDictionary<long, Hand>>.Failure)
-                    {
-                        stats = stats with { ErrorCount = stats.ErrorCount + 1 };
-                    }
-
-                    if (processedCount % batchSize == 0 || processedCount == stats.TotalFiles)
-                    {
-                        DisplayProgress(stats with { ProcessedFiles = processedCount }, processedCount);
-                    }
-                }
-            });
-
-        processTask.AsTask().GetAwaiter().GetResult();
-
-        Result<SaveStats>? finalSaveResult = null;
-        lock (accumulatorLock)
-        {
-            if (handsAccumulator.Count > 0)
-            {
-                finalSaveResult = SaveBatchToDb(handsAccumulator);
-                handsAccumulator.Clear();
-            }
-        }
-
-        lock (statsLock)
-        {
-            if (finalSaveResult != null)
-            {
-                stats = UpdateStats(stats, finalSaveResult);
-            }
-            stats = stats with { ProcessedFiles = processedCount };
-        }
-
-        return stats;
+        return ImportHandsService.StartImport(importServiceParams);
     }
 
-    private static Result<SaveStats> SaveBatchToDb(Dictionary<long, Hand> hands)
+    private static IProgress<ImportProgress> CreateProgressReporter(CancellationTokenSource cts, Stopwatch stopwatch)
     {
-        try
-        {
-            var dublicatesId = HandRepository.GetDublicates(hands);
-            var uniqHands = hands.Where(h => !dublicatesId.Contains(h.Key)).ToDictionary();
-            HandRepository.AddHands(uniqHands);
-            return Result<SaveStats>.Ok(
-                new SaveStats(Hands: hands, DublicatesCount: dublicatesId.Count)
-            );
-        }
-        catch (Exception ex)
-        {
-            return Result<SaveStats>.Fail($"Database save error: {ex.Message}");
-        }
+        return new Progress<ImportProgress>(progress =>
+            DisplayImportProgress.Display(progress, cts, stopwatch)
+        );
     }
 
-    private static PipelineStats UpdateStats(PipelineStats stats, Result<SaveStats> result)
-    {
-        return result switch
-        {
-            Result<SaveStats>.Success success => stats with
-            {
-                TotalHands = stats.TotalHands + success.Value.Hands.Count,
-                TotalDublicates = stats.TotalDublicates + success.Value.DublicatesCount
-            },
-            Result<SaveStats>.Failure => stats with
-            {
-                ErrorCount = stats.ErrorCount + 1
-            },
-            _ => stats
-        };
-    }
-
-    /// <summary>
-    /// Additional processing of poker hands and other complex calculations.
-    /// </summary>
-    /// <param name="parseResult">The result of parsing a file.</param>
-    /// <returns>A result containing a read-only list of hands.</returns>
     public static Result<IReadOnlyDictionary<long, Hand>> ProcessHands(Result<ParseFileResult> parseResult)
     {
-        return parseResult.Map(v => v.Hands);
+        return parseResult.Map(x => x.Hands);
     }
 
-    private static void DisplayProgress(PipelineStats stats, int processedCount)
+
+    private static class DisplayImportProgress
     {
-        var percentage = stats.TotalFiles > 0
-            ? (int)(processedCount * 100.0 / stats.TotalFiles)
-            : 0;
+        private const int BAR_LENGTH = 40;
 
-        var barLength = 40;
-        var filledLength = (int)(barLength * percentage / 100);
-        var bar = new string('█', filledLength) + new string('░', barLength - filledLength);
+        /// <summary>
+        /// Displays current pipeline statistics as a progress bar.
+        /// </summary>
+        public static void Display(ImportProgress progress, CancellationTokenSource cts, Stopwatch stopwatch)
+        {
 
-        Console.SetCursorPosition(0, Console.CursorTop);
-        Console.Write($"[{bar}] {percentage,3}% | " +
-                     $"Files - {processedCount}/{stats.TotalFiles} " +
-                     $"Hands - {stats.TotalHands} " +
-                     $"Error - {stats.ErrorCount}");
+            if (cts.Token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var percentage = CalculatePercentage(progress.TotalFiles, progress.ProcessedFiles);
+            var bar = CreateProgressBar(percentage);
+
+            Console.SetCursorPosition(0, Console.CursorTop);
+            Console.Write(new string(' ', Console.WindowWidth - 1));
+            Console.SetCursorPosition(0, Console.CursorTop);
+
+            Console.Write($"[{bar}] {percentage,3}% | " +
+                         $"Files - {progress.ProcessedFiles}/{progress.TotalFiles} " +
+                         $"Hands - {progress.TotalHands} " +
+                         $"Error - {progress.ErrorCount}");
+
+            if (progress.IsCompleted)
+            {
+                var message = DisplayImportResult.GetDisplayMessage(progress, stopwatch.Elapsed);
+                Console.WriteLine(message);
+                ReplLoop.PrintPrompt();
+            }
+        }
+
+        private static int CalculatePercentage(int total, int processed) =>
+            total > 0 ? (int)(processed * 100.0 / total) : 0;
+
+        private static string CreateProgressBar(int percentage)
+        {
+            var filledLength = BAR_LENGTH * percentage / 100;
+            return new string('█', filledLength) + new string('░', BAR_LENGTH - filledLength);
+        }
     }
 
-    private static string FormatResult(PipelineStats stats, TimeSpan duration)
+    private static class DisplayImportResult
     {
-        var filesPerSecond = duration.TotalSeconds > 0
-            ? stats.ProcessedFiles / duration.TotalSeconds
-            : 0;
+        /// <summary>
+        /// Formats pipeline statistics into a readable report.
+        /// </summary>
+        public static string GetDisplayMessage(ImportProgress progress, TimeSpan duration)
+        {
+            var metrics = CalculateMetrics(progress, duration);
 
-        var handsPerSecond = duration.TotalSeconds > 0
-            ? stats.TotalHands / duration.TotalSeconds
-            : 0;
+            var sb = new StringBuilder();
+            AppendHeader(sb);
+            AppendStatistics(sb, progress, metrics);
+            AppendPerformance(sb, duration, metrics);
+            AppendSuccessRate(sb, metrics.SuccessRate);
 
-        var successRate = stats.TotalFiles > 0
-            ? (stats.SuccessCount * 100.0 / stats.TotalFiles)
-            : 0;
+            return sb.ToString();
+        }
 
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine();
-        sb.AppendLine();
-        sb.AppendLine("╔════════════════════════════════════════════════════════════════╗");
-        sb.AppendLine("║                        Import Completed                        ║");
-        sb.AppendLine("╚════════════════════════════════════════════════════════════════╝");
-        sb.AppendLine();
-        sb.AppendLine($"  Statistics:");
-        sb.AppendLine($"     • Total files:         {stats.TotalFiles}");
-        sb.AppendLine($"     • Processed:           {stats.ProcessedFiles}");
-        sb.AppendLine($"     • Successful:          {stats.SuccessCount}");
-        sb.AppendLine($"     • Errors:              {stats.ErrorCount}");
-        sb.AppendLine($"     • Dublicates hands:    {stats.TotalDublicates}");
-        sb.AppendLine($"     • Total hands:         {stats.TotalHands}");
-        sb.AppendLine($"     • Hands per second:    {stats.TotalHands / duration.TotalSeconds:F1}");
-        sb.AppendLine();
-        sb.AppendLine($"  Performance:");
-        sb.AppendLine($"     • Duration:            {duration.TotalSeconds:F2} sec");
-        sb.AppendLine($"     • Speed:               {filesPerSecond:F1} files/sec");
-        sb.AppendLine($"     • Hands per second:    {handsPerSecond:F1}");
-        sb.AppendLine();
-        sb.AppendLine($"  Success rate: {successRate:F1}%");
+        private static PerformanceMetrics CalculateMetrics(ImportProgress progress, TimeSpan duration)
+        {
+            var seconds = duration.TotalSeconds;
+            return new PerformanceMetrics(
+                FilesPerSecond: seconds > 0 ? progress.ProcessedFiles / seconds : 0,
+                HandsPerSecond: seconds > 0 ? progress.TotalHands / seconds : 0,
+                SuccessRate: progress.TotalFiles > 0 ? progress.SuccessCount * 100.0 / progress.TotalFiles : 0
+            );
+        }
 
-        return sb.ToString();
+        private static void AppendHeader(StringBuilder sb)
+        {
+            sb.AppendLine();
+            sb.AppendLine();
+            sb.AppendLine("╔════════════════════════════════════════════════════════════════╗");
+            sb.AppendLine("║                        Import Completed                        ║");
+            sb.AppendLine("╚════════════════════════════════════════════════════════════════╝");
+            sb.AppendLine();
+        }
+
+        private static void AppendStatistics(StringBuilder sb, ImportProgress progress, PerformanceMetrics metrics)
+        {
+            sb.AppendLine($"  Statistics:");
+            sb.AppendLine($"     • Total files:         {progress.TotalFiles}");
+            sb.AppendLine($"     • Processed:           {progress.ProcessedFiles}");
+            sb.AppendLine($"     • Successful:          {progress.SuccessCount}");
+            sb.AppendLine($"     • Errors:              {progress.ErrorCount}");
+            sb.AppendLine($"     • Duplicate hands:     {progress.TotalDuplicates}");
+            sb.AppendLine($"     • Total hands:         {progress.TotalHands}");
+            sb.AppendLine();
+        }
+
+        private static void AppendPerformance(StringBuilder sb, TimeSpan duration, PerformanceMetrics metrics)
+        {
+            sb.AppendLine($"  Performance:");
+            sb.AppendLine($"     • Duration:            {duration.TotalSeconds:F2} sec");
+            sb.AppendLine($"     • Speed:               {metrics.FilesPerSecond:F1} files/sec");
+            sb.AppendLine($"     • Hands per second:    {metrics.HandsPerSecond:F1}");
+            sb.AppendLine();
+        }
+
+        private static void AppendSuccessRate(StringBuilder sb, double successRate)
+        {
+            sb.AppendLine($"  Success rate: {successRate:F1}%");
+        }
+
+        private record PerformanceMetrics(
+            double FilesPerSecond,
+            double HandsPerSecond,
+            double SuccessRate
+        );
     }
 }

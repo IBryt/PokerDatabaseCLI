@@ -1,4 +1,6 @@
-﻿using PokerDatabaseCLI.Domain.Poker.Models;
+﻿using PokerDatabaseCLI.Application.Import.ImportHands;
+using PokerDatabaseCLI.Core;
+using PokerDatabaseCLI.Domain.Poker.Models;
 
 namespace PokerDatabaseCLI.Infrastructure.Persistence;
 
@@ -6,19 +8,38 @@ public static class HandRepository
 {
     private static Dictionary<long, Hand> _db = new();
 
-    public static IReadOnlyList<long> GetDublicates(IReadOnlyDictionary<long, Hand> hands)
+    public static Result<SaveStats> SaveBatch(IReadOnlyDictionary<long, Hand> hands)
     {
-        return _db.Where(h => hands.Keys.Contains(h.Key)).Select(x => x.Key).ToList();
+        return ResultUtils.Try(() =>
+        {
+            var duplicateIds = GetDuplicates(hands);
+            var uniqueHands = FilterUnique(hands, duplicateIds);
+            AddHands(uniqueHands);
+            return new SaveStats(
+                    Hands: hands,
+                    DuplicatesCount: duplicateIds.Count
+                );
+        });
     }
 
-    public static IReadOnlyList<Hand> AddHands(IReadOnlyDictionary<long, Hand> hands)
+    private static void AddHands(IReadOnlyDictionary<long, Hand> hands)
     {
-        var list = new List<Hand>();
-        foreach (var item in hands)
+        foreach (var hand in hands)
         {
-            list.Add(item.Value);
-            _db.Add(item.Key, item.Value);
+            _db.TryAdd(hand.Key, hand.Value);
         }
-        return list;
+
     }
+
+    private static IReadOnlySet<long> GetDuplicates(IReadOnlyDictionary<long, Hand> hands)
+    {
+        return _db.Where(h => hands.Keys.Contains(h.Key)).Select(x => x.Key).ToHashSet();
+    }
+
+    private static IReadOnlyDictionary<long, Hand> FilterUnique(
+       IReadOnlyDictionary<long, Hand> hands,
+       IReadOnlySet<long> duplicateIds) =>
+       hands
+           .Where(h => !duplicateIds.Contains(h.Key))
+           .ToDictionary();
 }

@@ -25,15 +25,23 @@ public static class ReplLoop
 
         while (true)
         {
-            Console.Write(Prompt);
+            PrintPrompt();
             var input = Console.ReadLine();
 
             if (string.IsNullOrWhiteSpace(input))
                 continue;
 
             ProcessInput(input);
-            Console.WriteLine();
         }
+    }
+
+    /// <summary>
+    /// Prints the REPL command prompt symbol ("> ") to the console,
+    /// indicating that the system is ready to accept a new command.
+    /// </summary>
+    public static void PrintPrompt()
+    {
+        Console.Write(Prompt);
     }
 
     private static void ShowWelcome()

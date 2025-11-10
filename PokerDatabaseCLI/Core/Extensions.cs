@@ -3,7 +3,7 @@
 /// <summary>
 /// Provides functional extension methods for working with <see cref="Result{T}"/>.
 /// </summary>
-public static class ResultExtensions
+public static class Extensions
 {
     /// <summary>
     /// Applies a transformation function to the value inside a successful <see cref="Result{T}"/>.
@@ -17,14 +17,14 @@ public static class ResultExtensions
     /// or the original failure if not.
     /// </returns>
     public static Result<TOut> Map<TIn, TOut>(
-        this Result<TIn> result,
-        Func<TIn, TOut> mapper) =>
-        result switch
-        {
-            Result<TIn>.Success success => Result<TOut>.Ok(mapper(success.Value)),
-            Result<TIn>.Failure failure => Result<TOut>.Fail(failure.Error),
-            _ => throw new InvalidOperationException()
-        };
+           this Result<TIn> result,
+           Func<TIn, TOut> mapper) =>
+           result switch
+           {
+               Result<TIn>.Success success => Try(mapper, success.Value),
+               Result<TIn>.Failure failure => Result<TOut>.Fail(failure.Error),
+               _ => throw new InvalidOperationException()
+           };
 
     /// <summary>
     /// Chains two operations that return <see cref="Result{T}"/> values (also known as <c>FlatMap</c>).
@@ -38,14 +38,14 @@ public static class ResultExtensions
     /// otherwise, the current failure.
     /// </returns>
     public static Result<TOut> Bind<TIn, TOut>(
-        this Result<TIn> result,
-        Func<TIn, Result<TOut>> binder) =>
-        result switch
-        {
-            Result<TIn>.Success success => binder(success.Value),
-            Result<TIn>.Failure failure => Result<TOut>.Fail(failure.Error),
-            _ => throw new InvalidOperationException()
-        };
+            this Result<TIn> result,
+            Func<TIn, Result<TOut>> binder) =>
+            result switch
+            {
+                Result<TIn>.Success success => Try(binder, success.Value),
+                Result<TIn>.Failure failure => Result<TOut>.Fail(failure.Error),
+                _ => throw new InvalidOperationException()
+            };
 
     /// <summary>
     /// Pattern-matches a <see cref="Result{T}"/> to handle both success and failure cases.
@@ -89,7 +89,32 @@ public static class ResultExtensions
                 break;
         }
     }
+
+    private static Result<TOut> Try<TIn, TOut>(Func<TIn, TOut> func, TIn input)
+    {
+        try
+        {
+            return Result<TOut>.Ok(func(input));
+        }
+        catch (Exception e)
+        {
+            return Result<TOut>.Fail(e.Message);
+        }
+    }
+
+    private static Result<TOut> Try<TIn, TOut>(Func<TIn, Result<TOut>> func, TIn input)
+    {
+        try
+        {
+            return func(input);
+        }
+        catch (Exception e)
+        {
+            return Result<TOut>.Fail(e.Message);
+        }
+    }
 }
+
 
 /// <summary>
 /// Provides general-purpose functional programming utilities such as <c>Pipe</c> and <c>Compose</c>.
@@ -120,4 +145,88 @@ public static class FunctionalExtensions
         this Func<T1, T2> f,
         Func<T2, T3> g) =>
         x => g(f(x));
+}
+
+public static class ResultUtils
+{
+    /// <summary>
+    /// Обёртка для try-catch в функциональном стиле
+    /// </summary>
+    public static Result<T> Try<T>(Func<T> func)
+    {
+        try
+        {
+            return Result<T>.Ok(func());
+        }
+        catch (Exception ex)
+        {
+            return Result<T>.Fail($"Error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Обёртка для try-catch с кастомным сообщением об ошибке
+    /// </summary>
+    public static Result<T> Try<T>(Func<T> func, string errorPrefix)
+    {
+        try
+        {
+            return Result<T>.Ok(func());
+        }
+        catch (Exception ex)
+        {
+            return Result<T>.Fail($"{errorPrefix}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Обёртка для try-catch с маппингом исключений
+    /// </summary>
+    public static Result<T> Try<T>(
+        Func<T> func,
+        Func<Exception, string> errorMapper)
+    {
+        try
+        {
+            return Result<T>.Ok(func());
+        }
+        catch (Exception ex)
+        {
+            return Result<T>.Fail(errorMapper(ex));
+        }
+    }
+
+    /// <summary>
+    /// Асинхронная обёртка для try-catch
+    /// </summary>
+    public static async Task<Result<T>> TryAsync<T>(Func<Task<T>> func)
+    {
+        try
+        {
+            var result = await func();
+            return Result<T>.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<T>.Fail($"Error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Асинхронная обёртка для try-catch с кастомным сообщением
+    /// </summary>
+    public static async Task<Result<T>> TryAsync<T>(
+        Func<Task<T>> func,
+        string errorPrefix)
+    {
+        try
+        {
+            var result = await func();
+            return Result<T>.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return Result<T>.Fail($"{errorPrefix}: {ex.Message}");
+        }
+    }
 }

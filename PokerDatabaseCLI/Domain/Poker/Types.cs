@@ -1,6 +1,6 @@
 ﻿using PokerDatabaseCLI.Domain.Poker.Models;
 
-namespace PokerDatabaseCLI.Domain.Poker.Import;
+namespace PokerDatabaseCLI.Domain.Poker;
 
 /// <summary>
 /// Represents the result of scanning files in a folder.
