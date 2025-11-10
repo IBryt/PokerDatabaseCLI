@@ -60,7 +60,6 @@ public static class ImportCommand
         return parseResult.Map(x => x.Hands);
     }
 
-
     private static class DisplayImportProgress
     {
         private const int BAR_LENGTH = 40;
