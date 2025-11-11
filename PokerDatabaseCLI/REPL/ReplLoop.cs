@@ -32,6 +32,7 @@ public static class ReplLoop
                 continue;
 
             ProcessInput(input);
+            Console.WriteLine();
         }
     }
 

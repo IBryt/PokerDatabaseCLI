@@ -1,5 +1,4 @@
 ﻿using PokerDatabaseCLI.Commands.Core;
-using PokerDatabaseCLI.Core;
 using System.Text;
 
 namespace PokerDatabaseCLI.Output;
@@ -32,7 +31,7 @@ public static class HelpGenerator
         sb.AppendLine("Usage: <command> [parameters]");
         sb.AppendLine("Command help: help --command <command_name>");
         sb.AppendLine();
-        sb.AppendLine("To exit, type: exit");
+        sb.Append("To exit, type: exit");
 
         return sb.ToString();
     }
@@ -61,7 +60,7 @@ public static class HelpGenerator
                 var defaultVal = param.DefaultValue != null ? $" (default: {param.DefaultValue})" : "";
 
                 sb.AppendLine($"  --{param.LongName,-15} (-{param.ShortName,-2}) {required}{defaultVal}");
-                sb.AppendLine($"      {param.Description}");
+                sb.AppendLine($"  {param.Description}");
             }
         }
         else

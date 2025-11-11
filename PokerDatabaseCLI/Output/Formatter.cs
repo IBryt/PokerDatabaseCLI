@@ -10,7 +10,7 @@ public static class Formatter
     /// </summary>
     /// <param name="value">The value to format.</param>
     /// <returns>A formatted string representing success.</returns>
-    public static string FormatSuccess(string value) => $"{value}";
+    public static string FormatSuccess(string value) => value;
 
     /// <summary>
     /// Formats an error result.

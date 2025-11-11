@@ -1,9 +1,8 @@
-﻿using PokerDatabaseCLI.Application.Import;
-using PokerDatabaseCLI.Application.Import.ImportHands;
+﻿using PokerDatabaseCLI.Application;
+using PokerDatabaseCLI.Commands.Core;
 using PokerDatabaseCLI.Core;
 using PokerDatabaseCLI.Core.Dependencies;
 using PokerDatabaseCLI.Domain.Poker;
-using PokerDatabaseCLI.Domain.Poker.Models;
 using PokerDatabaseCLI.REPL;
 using System.Diagnostics;
 using System.Text;
@@ -19,7 +18,7 @@ public static class ImportCommand
     /// Definition of the "import" command for the CLI.
     /// </summary>
     public static readonly CommandDefinition Definition = new(
-        Name: "import",
+        Name: "Import",
         Description: "Import hands from folder",
         Parameters: new[]
         {
@@ -41,7 +40,7 @@ public static class ImportCommand
         var importServiceParams = new ImportServiceParams(
             Path: path,
             Progress: progressReporter,
-            CancellationToken: cts.Token,
+            Token: cts.Token,
             ImportDependencies: importDependencies
         );
 
@@ -55,7 +54,7 @@ public static class ImportCommand
         );
     }
 
-    public static Result<IReadOnlyDictionary<long, Hand>> ProcessHands(Result<ParseFileResult> parseResult)
+    public static Result<IReadOnlyList<Hand>> ProcessHands(Result<ParseFileResult> parseResult)
     {
         return parseResult.Map(x => x.Hands);
     }
@@ -118,7 +117,6 @@ public static class ImportCommand
             AppendHeader(sb);
             AppendStatistics(sb, progress, metrics);
             AppendPerformance(sb, duration, metrics);
-            AppendSuccessRate(sb, metrics.SuccessRate);
 
             return sb.ToString();
         }
@@ -161,12 +159,6 @@ public static class ImportCommand
             sb.AppendLine($"     • Duration:            {duration.TotalSeconds:F2} sec");
             sb.AppendLine($"     • Speed:               {metrics.FilesPerSecond:F1} files/sec");
             sb.AppendLine($"     • Hands per second:    {metrics.HandsPerSecond:F1}");
-            sb.AppendLine();
-        }
-
-        private static void AppendSuccessRate(StringBuilder sb, double successRate)
-        {
-            sb.AppendLine($"  Success rate: {successRate:F1}%");
         }
 
         private record PerformanceMetrics(

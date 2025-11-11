@@ -76,6 +76,8 @@ public static class CommandRegistry
     }
 
     private static bool IsCustomCommandType(Type type) =>
+        type != typeof(ExitCommand) &&
+        type != typeof(HelpCommand) &&
         type.IsClass &&
         type.IsPublic &&
         type.Namespace != null &&

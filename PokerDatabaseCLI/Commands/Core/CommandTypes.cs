@@ -1,4 +1,6 @@
-﻿namespace PokerDatabaseCLI.Core;
+﻿using PokerDatabaseCLI.Core;
+
+namespace PokerDatabaseCLI.Commands.Core;
 
 /// <summary>
 /// Represents the execution context of a command, including its name and parsed parameters.
@@ -44,12 +46,3 @@ public record ParsedCommand(
     string CommandName,
     IReadOnlyDictionary<string, string> Parameters
 );
-
-/// <summary>
-/// Represents a unit type that carries no data but indicates a successful result in functional operations.
-/// </summary>
-public record Unit
-{
-    public static readonly Unit Value = new();
-    private Unit() { }
-}

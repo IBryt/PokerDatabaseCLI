@@ -13,7 +13,7 @@ public static class HelpCommand
     /// Defines the "help" command for the CLI.
     /// </summary>
     public static readonly CommandDefinition Definition = new(
-        Name: "help",
+        Name: "Help",
         Description: "Show help for commands",
         Parameters: new[]
         {

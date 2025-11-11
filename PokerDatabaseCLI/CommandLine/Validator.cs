@@ -1,4 +1,5 @@
-﻿using PokerDatabaseCLI.Core;
+﻿using PokerDatabaseCLI.Commands.Core;
+using PokerDatabaseCLI.Core;
 
 namespace PokerDatabaseCLI.CommandLine;
 

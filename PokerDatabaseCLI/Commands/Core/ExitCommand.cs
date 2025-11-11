@@ -12,7 +12,7 @@ public static class ExitCommand
     /// Defines the "exit" command for the CLI.
     /// </summary>
     public static readonly CommandDefinition Definition = new(
-        Name: "exit",
+        Name: "Exit",
         Description: "Exit the application",
         Parameters: Array.Empty<ParameterDefinition>(),
         Execute: ExecuteExit

@@ -1,4 +1,4 @@
-﻿namespace PokerDatabaseCLI.Domain.Poker.Models;
+﻿namespace PokerDatabaseCLI.Domain.Poker;
 
 /// <summary>
 /// Represents a poker hand.

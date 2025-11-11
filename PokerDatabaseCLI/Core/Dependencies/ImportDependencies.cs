@@ -1,5 +1,5 @@
-﻿using PokerDatabaseCLI.Application.Import.ImportHands;
-using PokerDatabaseCLI.Domain.Poker.Models;
+﻿using PokerDatabaseCLI.Application;
+using PokerDatabaseCLI.Domain.Poker;
 using PokerDatabaseCLI.Infrastructure.Persistence;
 
 namespace PokerDatabaseCLI.Core.Dependencies;
@@ -13,9 +13,8 @@ public record ImportDependencies(
 
 )
 {
-
     public static readonly ImportDependencies Default = new(
         SaveBatch: HandRepository.SaveBatch,
-        BatchSize: 20_000
+        BatchSize: 5_000
     );
 }
