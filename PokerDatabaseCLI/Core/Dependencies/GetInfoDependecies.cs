@@ -3,7 +3,10 @@ using PokerDatabaseCLI.Infrastructure.Persistence;
 
 namespace PokerDatabaseCLI.Core.Dependencies;
 
-public record class GetInfoDependecies(
+/// <summary>
+/// Represents the dependencies required for retrieving common information from the repository.
+/// </summary>
+public record GetInfoDependecies(
      Func<Result<CommonInfo>> GetInfo
 )
 {

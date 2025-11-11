@@ -27,7 +27,8 @@ public static class ImportHandsService
                 {
                     ProcessImportPipeline(directories, importServiceParams);
                     return "Import started.";
-                });
+                })
+                .MapError(_ => "unexcpected error");
         }
         catch (Exception ex)
         {
@@ -294,6 +295,7 @@ public static class ImportHandsService
         private static Hand? ParseSingleHand(ReadOnlySpan<char> lineSpan, StreamReader reader)
         {
             var number = GetNumberOptimized(lineSpan);
+            var dateTime = GetDateTime(lineSpan);
             var players = new List<Player>(10);
 
             string? line;
@@ -313,7 +315,37 @@ public static class ImportHandsService
                 }
             }
 
-            return new Hand(number, players);
+            return new Hand(number, dateTime, players);
+        }
+
+        private static DateTime GetDateTime(ReadOnlySpan<char> line)
+        {
+            var openBracketIndex = line.IndexOf('[') + 1;
+            int lastSpaceIndex = line.LastIndexOf(' ');
+            var dateSpan = line.Slice(openBracketIndex, lastSpaceIndex - openBracketIndex);
+            var tzSpan = line.Slice(lastSpaceIndex + 1, line.Length - lastSpaceIndex - 2);
+
+            string format = "yyyy/MM/dd H:mm:ss";
+
+            DateTime dt = DateTime.ParseExact(
+                dateSpan,
+                format,
+                CultureInfo.InvariantCulture
+            );
+
+            var tz = GetTimeZoneFromAbbreviation(tzSpan);
+
+            return TimeZoneInfo.ConvertTimeToUtc(dt, tz);
+        }
+
+        private static TimeZoneInfo GetTimeZoneFromAbbreviation(ReadOnlySpan<char> tzAbbreviation)
+        {
+            return tzAbbreviation switch
+            {
+                "ET" or "EST" => TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"),
+                "UTC" => TimeZoneInfo.Utc,
+                _ => throw new ArgumentException($"Unknown timezone abbreviation: {tzAbbreviation.ToString()}")
+            };
         }
 
         private static long GetNumberOptimized(ReadOnlySpan<char> line)

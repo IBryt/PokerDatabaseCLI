@@ -10,7 +10,6 @@ namespace PokerDatabaseCLI.Core.Dependencies;
 public record ImportDependencies(
     Func<IReadOnlyDictionary<long, Hand>, Result<SaveStats>> SaveBatch,
     int BatchSize
-
 )
 {
     public static readonly ImportDependencies Default = new(

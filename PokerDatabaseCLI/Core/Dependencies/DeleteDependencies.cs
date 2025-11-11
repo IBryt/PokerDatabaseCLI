@@ -2,6 +2,9 @@
 
 namespace PokerDatabaseCLI.Core.Dependencies;
 
+/// <summary>
+/// Represents the dependencies required for deleting a hand from the repository.
+/// </summary>
 public record DeleteDependencies(
     Func<long, Result<bool>> DeleteHandByNumber
 )

@@ -5,5 +5,6 @@
 /// </summary>
 public record Hand(
     long Number,
+    DateTime DateTime,
     IReadOnlyList<Player> Players
 );
