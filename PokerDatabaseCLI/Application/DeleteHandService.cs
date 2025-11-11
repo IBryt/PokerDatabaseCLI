@@ -1,4 +1,5 @@
-﻿using PokerDatabaseCLI.Core.Dependencies;
+﻿using PokerDatabaseCLI.Core;
+using PokerDatabaseCLI.Core.Dependencies;
 
 namespace PokerDatabaseCLI.Application;
 
@@ -10,7 +11,7 @@ public sealed record DeleteHandServiceParams(
 
 public static class DeleteHandService
 {
-    public static bool StartDelete(DeleteHandServiceParams deleteHandServiceParams)
+    public static Result<bool> StartDelete(DeleteHandServiceParams deleteHandServiceParams)
     {
         var fn = deleteHandServiceParams.DeleteDependencies.DeleteHandByNumber;
         var number = deleteHandServiceParams.Number;

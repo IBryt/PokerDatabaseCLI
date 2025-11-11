@@ -22,11 +22,26 @@ public static class HandRepository
                 );
         });
     }
-    public static bool DeleteHandByNumber(long number)
+    public static Result<bool> DeleteHandByNumber(long number)
     {
-        _db.TryRemove(number, out var removedValue);
-        return removedValue == null ? false : true;
+        return ResultUtils.Try(() =>
+        {
+            _db.TryRemove(number, out var removedValue);
+            return removedValue == null ? false : true;
+        });
     }
+
+    public static Result<CommonInfo> GetInfo()
+    {
+        return ResultUtils.Try(() =>
+        {
+            return new CommonInfo(
+                CountHands: _db.Count,
+                CountPlayers: _db.Values.SelectMany(h => h.Players.Select(p => p.Name)).Distinct().Count()
+            );
+        });
+    }
+
 
     private static void AddHands(IReadOnlyDictionary<long, Hand> hands)
     {
@@ -47,4 +62,6 @@ public static class HandRepository
        hands
            .Where(h => !duplicateIds.Contains(h.Key))
            .ToDictionary();
+
+
 }

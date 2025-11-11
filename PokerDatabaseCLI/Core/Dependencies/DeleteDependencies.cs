@@ -3,7 +3,7 @@
 namespace PokerDatabaseCLI.Core.Dependencies;
 
 public record DeleteDependencies(
-    Func<long, bool> DeleteHandByNumber
+    Func<long, Result<bool>> DeleteHandByNumber
 )
 {
     public static readonly DeleteDependencies Default = new(

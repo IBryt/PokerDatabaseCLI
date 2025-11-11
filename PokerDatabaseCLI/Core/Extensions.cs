@@ -90,6 +90,25 @@ public static class Extensions
         }
     }
 
+    /// <summary>
+    /// Transforms the error message of a failed <see cref="Result{T}"/> using the provided mapping function.
+    /// </summary>
+    /// <typeparam name="T">The type of the value contained in the result.</typeparam>
+    /// <param name="result">The result whose error message should be transformed.</param>
+    /// <param name="mapError">A function that maps the original error message to a new one.</param>
+    /// <returns>
+    /// A new <see cref="Result{T}"/> where:
+    /// - If the result was successful, it is returned unchanged.
+    /// - If the result was a failure, the error message is transformed using <paramref name="mapError"/>.
+    /// </returns>
+    public static Result<T> MapError<T>(this Result<T> result, Func<string, string> mapError) =>
+        result switch
+        {
+            Result<T>.Success success => success,
+            Result<T>.Failure failure => Result<T>.Fail(mapError(failure.Error)),
+            _ => throw new InvalidOperationException()
+        };
+
     private static Result<TOut> Try<TIn, TOut>(Func<TIn, TOut> func, TIn input)
     {
         try

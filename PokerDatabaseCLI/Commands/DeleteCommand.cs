@@ -39,7 +39,7 @@ public static class DeleteCommand
         var result = DeleteHandService.StartDelete(deleteHandServiceParams);
 
         return result
-            ? Result<string>.Ok($"Hand #{number} has been deleted")
-            : Result<string>.Fail($"Hand #{number} not found");
+            .Map(res => res ? $"Hand #{number} has been deleted" : $"Hand #{number} not found")
+            .MapError(_ => "unexcpected error");
     }
 }
